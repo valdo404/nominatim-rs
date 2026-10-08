@@ -12,34 +12,62 @@ to get to it as quickly as possible.
 ## Examples
 **Create a client:**
 ```rust no_run
+use nominatim::{Client, IdentificationMethod};
+
 let client = Client::new(IdentificationMethod::from_user_agent(
     "Example Application Name",
 ));
 ```
 
+**Or configure it** (another server, another timeout, your own `reqwest::Client`):
+```rust no_run
+use std::time::Duration;
+use nominatim::{Client, IdentificationMethod};
+
+let http = reqwest::Client::builder()
+    .connect_timeout(Duration::from_secs(5))
+    .build()
+    .unwrap();
+
+let client = Client::builder(IdentificationMethod::from_user_agent("Example Application Name"))
+    .base_url("https://nominatim.example.org/")
+    .unwrap()
+    .timeout(Duration::from_secs(30))
+    .http_client(http)
+    .build();
+```
+
 **Check the server's status:**
 ```rust no_run
+# use nominatim::{Client, IdentificationMethod};
+# async fn example() {
+# let client = Client::new(IdentificationMethod::from_user_agent("Example Application Name"));
 let status = client.status().await.unwrap();
 
-println!("{}", client.status().await.unwrap());
+println!("{}", status.message);
+# }
 ```
 
 Returns:
-```
+```text
 OK
 ```
 
 **Search for some places with a simple query:**
 ```rust no_run
+# use nominatim::{Client, IdentificationMethod};
+# async fn example() {
+# let client = Client::new(IdentificationMethod::from_user_agent("Example Application Name"));
 let search_results = client.search("statue of liberty").await.unwrap();
 
 for place in search_results {
     println!("{}", place.display_name);
 }
+# }
 ```
 
 Returns:
-```
+```text
 Statue of Liberty, Flagpole Plaza, Manhattan Community Board 1, Manhattan, New York County, City of New York, New York, 10004, United States
 Statue of Liberty, North Center Street, Plymouth, Marshall County, Indiana, 46563, United States
 Statue of Liberty, Visnesvegen, Visnes, Karmøy, Rogaland, 4264, Norge
@@ -54,30 +82,77 @@ Statue of Liberty, 23501, Macedonia Road, Hegar, Hockley, Waller County, Texas, 
 
 **Get the closest place to a latitude and longitude pair:**
 ```rust no_run
+# use nominatim::{Client, IdentificationMethod};
+# async fn example() {
+# let client = Client::new(IdentificationMethod::from_user_agent("Example Application Name"));
 let reverse_search = client
     .reverse("40.689249", "-74.044500", None)
     .await
     .unwrap();
 
 println!("{}", reverse_search.display_name);
+# }
 ```
 
 Returns:
-```
+```text
 Statue of Liberty, Flagpole Plaza, Manhattan Community Board 1, Manhattan, New York County, City of New York, New York, 10004, United States
+```
+
+**Choose the parameters of a reverse request**, sent in the order they are set
+(here `reverse?format=json&lat=…&lon=…&zoom=16&addressdetails=1`), and read
+the address:
+```rust no_run
+# use nominatim::{Client, IdentificationMethod};
+# async fn example() {
+# let client = Client::new(IdentificationMethod::from_user_agent("Example Application Name"));
+let place = client
+    .reverse_request("40.689249", "-74.044500")
+    .zoom(16)
+    .address_details(true)
+    .send()
+    .await
+    .unwrap();
+
+let address = place.address.unwrap();
+println!("{:?} {:?}", address.road, address.city);
+// Any element, whether `Address` has a field for it or not:
+println!("{:?}", address.get("viewpoint"));
+# }
+```
+
+**Or get the answer as raw JSON:**
+```rust no_run
+# use nominatim::{Client, IdentificationMethod};
+# async fn example() {
+# let client = Client::new(IdentificationMethod::from_user_agent("Example Application Name"));
+let json = client
+    .reverse_request("40.689249", "-74.044500")
+    .zoom(16)
+    .address_details(true)
+    .send_json()
+    .await
+    .unwrap();
+
+println!("{}", json["address"]["country_code"]);
+# }
 ```
 
 **Lookup places from a list of OSM Nodes, Ways, or Relations:**
 ```rust no_run
+# use nominatim::{Client, IdentificationMethod};
+# async fn example() {
+# let client = Client::new(IdentificationMethod::from_user_agent("Example Application Name"));
 let lookup_results = client.lookup(vec!["R146656", "W50637691"]).await.unwrap();
 
 for place in lookup_results {
     println!("{}", place.display_name);
 }
+# }
 ```
 
 Returns:
-```
+```text
 Manchester, Greater Manchester, England, United Kingdom
 Brandenburger Tor, Brandenburger Straße, Historische Innenstadt, Innenstadt, Potsdam, Brandenburg, 14467, Deutschland
 ```
@@ -111,8 +186,23 @@ Brandenburger Tor, Brandenburger Straße, Historische Innenstadt, Innenstadt, Po
  0.3.5:
  - Update `rustls` feature to be more general.
 
+0.4.0:
+ - Upgrade to reqwest 0.13. The `rustls` feature now enables reqwest's `rustls`
+   (formerly `rustls-tls`); a `native-tls` feature is added, and without the
+   default features no TLS backend is selected by this crate.
+ - Add `Client::builder` to set the base url, the timeout and an existing
+   `reqwest::Client`.
+ - Add `Client::reverse_request` to choose the parameters of a reverse request
+   and to read its answer as a `Place`, as raw JSON or as any type.
+ - `Address` has a field for every documented address element, and keeps the
+   others in `Address::other`; `Address::get` reads an element by its key.
+ - `Place` gains `name`, `category`, `addresstype`, `place_rank`, `namedetails`
+   and keeps unknown fields in `Place::other`; `ExtraTags` keeps unknown tags.
+ - Absent address elements are no longer serialized as `null`.
+ - The examples of this README compile as doc tests.
+
 ## License
-```
+```text
 MIT License
 
 Copyright (c) 2023 Grant Handy

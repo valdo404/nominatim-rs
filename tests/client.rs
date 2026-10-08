@@ -41,7 +41,10 @@ async fn builder_sets_the_base_url_and_the_timeout() {
         .timeout(Duration::from_secs(60))
         .build();
 
-    assert_eq!(client.base_url().as_str(), "http://localhost:8080/nominatim/");
+    assert_eq!(
+        client.base_url().as_str(),
+        "http://localhost:8080/nominatim/"
+    );
     assert_eq!(client.timeout, Duration::from_secs(60));
     assert_eq!(
         client.reverse_request("1", "2").url().as_str(),
@@ -94,7 +97,10 @@ async fn reverse_request_sends_its_parameters_in_the_order_they_were_set() {
         .send()
         .await
         .unwrap();
-    assert_eq!(place.display_name, "Statue of Liberty, New York, United States");
+    assert_eq!(
+        place.display_name,
+        "Statue of Liberty, New York, United States"
+    );
 
     let recorded = server.await.unwrap();
     assert_eq!(
@@ -183,8 +189,7 @@ async fn send_json_returns_the_answer_as_it_came() {
 
 #[tokio::test]
 async fn an_error_answer_is_still_readable() {
-    let (base_url, server) =
-        common::serve_once(404, r#"{"error": "Unable to geocode"}"#).await;
+    let (base_url, server) = common::serve_once(404, r#"{"error": "Unable to geocode"}"#).await;
 
     let json = client(&base_url)
         .reverse_request("0", "0")
